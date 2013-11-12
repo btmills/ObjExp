@@ -1,8 +1,8 @@
-/*
- * Universal Module Definition
- * https://github.com/umdjs/umd/blob/master/returnExports.js
- */
 (function (root, factory) {
+	/*
+	 * Universal Module Definition
+	 * https://github.com/umdjs/umd/blob/master/returnExports.js
+	 */
 	if (typeof define === 'function' && define.amd) {
 		define(factory);
 	} else if (typeof exports === 'object') {
@@ -12,154 +12,60 @@
 	}
 }(this, function () {
 
-	var NULL = 'null';
-	var TRUE = 'true';
-	var FALSE = 'false';
-	var NUMBER = 'number';
-	var STRING = 'string';
-	var OBJECT_BEGIN = 'object-begin';
-	var OBJECT_END = 'object-end';
-	var COLON = 'colon';
-	var COMMA = 'comma';
-	var ARRAY_BEGIN = 'array-begin';
-	var ARRAY_END = 'array-end';
-
-	var parse = function (tokens) {
-
-		var cursor = (function (tokens) {
-
-			var index = 0;
-
-			var res = function () {
-				return tokens[index];
-			};
-
-			res.reset = function () {
-				index = 0;
-				return res();
-			};
-
-			res.next = function () {
-				index++;
-				return res();
-			};
-
-			return res;
-
-		})(tokens);
-
-		var expect = function (type) {
-			var res = cursor();
-			if (!res.type === type) {
-				throw new Error('Unexpected token ' + String(cursor()) + ' ' +
-					cursor().type + '. Expecting ' + type + '.');
-			}
-			cursor.next();
-			return res;
-		};
-
-		var makeNull = function () {
-			var token = expect(NULL);
-			return null;
-		};
-
-		var makeTrue = function () {
-			var token = expect(TRUE);
-			return true;
-		};
-
-		var makeFalse = function () {
-			var token = expect(FALSE);
-			return false;
-		};
-
-		var makeNumber = function () {
-			var token = expect(NUMBER);
-			return parseFloat(token.raw);
-		};
-
-		var makeString = function () {
-			var token = expect(STRING);
-			return token.raw; // TODO: Escapes?
-		};
-
-		var makeObject = function () {
-			var addProperty = function () {
-				var name = expect(STRING).raw;
-				expect(COLON);
-				var val = makeValue();
-				res[name] = val;
-			};
-
-			var res = {};
-			expect(OBJECT_BEGIN);
-			if (cursor().type !== OBJECT_END) {
-				addProperty();
-			}
-			while (cursor().type === COMMA) {
-				cursor.next();
-				addProperty();
-			}
-			expect(OBJECT_END);
-			return res;
-		};
-
-		var makeArray = function () {
-			var res = [];
-			expect(ARRAY_BEGIN);
-			if (cursor().type !== ARRAY_END) {
-				res.push(makeValue());
-			}
-			while (cursor().type === COMMA) {
-				cursor.next();
-				res.push(makeValue());
-			}
-			expect(ARRAY_END);
-			return res;
-		};
-
-		var makeValue = function () {
-			switch (cursor().type) {
-				case NULL:
-					return makeNull();
-				case TRUE:
-					return makeTrue();
-				case FALSE:
-					return makeFalse();
-				case NUMBER:
-					return makeNumber();
-				case STRING:
-					return makeString();
-				case OBJECT_BEGIN:
-					return makeObject();
-				case ARRAY_BEGIN:
-					return makeArray();
-				default:
-					throw new Error('Unexpected token ' + String(cursor()) +
-						' ' + cursor().type);
-			}
-		};
-
-		return makeValue();
+	var Tokens = {
+		NULL:         0x01,
+		TRUE:         0x02,
+		FALSE:        0x03,
+		COLON:        0x04,
+		COMMA:        0x05,
+		STRING:       0x06,
+		NUMBER:       0x07,
+		BEGIN_ARRAY:  0x08,
+		END_ARRAY:    0x09,
+		BEGIN_OBJECT: 0x0a,
+		END_OBJECT:   0x0b,
+		PROPERTY:     0x11,
+		PROPERTIES:   0x12,
+		OBJECT:       0x13,
+		ELEMENTS:     0x14,
+		ARRAY:        0x15,
+		VALUE:        0x16
 	};
+	Object.keys(Tokens).forEach(function (key) {
+		this[key] = Tokens[key];
+	}, this);
+
+	var TokenNames = {}
+	TokenNames[NULL] = 'null';
+	TokenNames[TRUE] = 'true';
+	TokenNames[FALSE] = 'false';
+	TokenNames[COLON] = 'colon';
+	TokenNames[COMMA] = 'comma';
+	TokenNames[STRING] = 'string';
+	TokenNames[NUMBER] = 'number';
+	TokenNames[BEGIN_ARRAY] = 'begin-array';
+	TokenNames[END_ARRAY] = 'end-array';
+	TokenNames[BEGIN_OBJECT] = 'begin-object';
+	TokenNames[END_OBJECT] = 'end-object';
 
 	var tokenize = function (json) {
-		json = json.slice(); // Copy the string to avoid modifying it
+		json = json.slice(); // Copy string
 
+		var index = 0;
 		var tokens = [];
 
-		var line = 1;
-		var column = 0;
-
-		var classify = function () {
-			var ch = json.slice(0, 1); // Get the first character
+		function classify (ch) {
 			switch (ch) {
-				case 'n':
-					return NULL;
-				case 't':
-					return TRUE;
-				case 'f':
-					return FALSE;
+				case 'n': return NULL;
+				case 't': return TRUE;
+				case 'f': return FALSE;
+				case ':': return COLON;
+				case ',': return COMMA;
+				case '"': return STRING;
+				case '[': return BEGIN_ARRAY;
+				case ']': return END_ARRAY;
+				case '{': return BEGIN_OBJECT;
+				case '}': return END_OBJECT;
 				case '-':
 				case '0':
 				case '1':
@@ -172,117 +78,222 @@
 				case '8':
 				case '9':
 					return NUMBER;
-				case '"':
-					return STRING;
-				case '{':
-					return OBJECT_BEGIN;
-				case '}':
-					return OBJECT_END;
-				case ':':
-					return COLON;
-				case ',':
-					return COMMA;
-				case '[':
-					return ARRAY_BEGIN;
-				case ']':
-					return ARRAY_END;
 				default:
-					throw 'Unexpected input line ' + line + ' column ' + column + ': ' + ch;
+					throw 'Unexpected character ' + ch;
 			}
 		}
 
-		var token = function (text, type) {
-			var str = new String(text);
-			str.type = type;
-			return str;
-		};
+		function isUnicodeControlCharacter (ch) {
+			return (0 <= ch && ch <= 0x1f);
+		}
 
-		var advance = function (length) {
-			// Advance length
-			if (!arguments.length < 1) {
-				json = json.slice(length);
-			}
-			// Take whitespace
-			json = json.slice(/^\s*/.exec(json)[0].length);
-		};
-
-		var beginsWith = function (str, prefix) {
-			return str.slice(0, prefix.length) === prefix;
-		};
-
-		var takeLiteral = function (str, type) {
+		function takeLiteral(type, literal) {
 			return function () {
-				if (!beginsWith(json, str)) {
-					throw 'Unexpected input. Expecting ' + str + '.';
-				} else {
-					tokens.push(new token(str, type));
-					advance(str.length);
+				var value = '';
+				for (var i = 0; i < literal.length; i++) {
+					value += json[index++];
+					if (value[i] != literal[i]) throw 'Unexpected input ' + value;
 				}
+				return {
+					type: type,
+					value: value
+				};
+			};
+		}
+
+		var take = {}
+		take[NULL] = takeLiteral(NULL, 'null');
+		take[TRUE] = takeLiteral(TRUE, 'true');
+		take[FALSE] = takeLiteral(FALSE, 'false');
+		take[COLON] = takeLiteral(COLON, ':');
+		take[COMMA] = takeLiteral(COMMA, ',');
+		take[BEGIN_ARRAY] = takeLiteral(BEGIN_ARRAY, '[');
+		take[END_ARRAY] = takeLiteral(END_ARRAY, ']');
+		take[BEGIN_OBJECT] = takeLiteral(BEGIN_OBJECT, '{');
+		take[END_OBJECT] = takeLiteral(END_OBJECT, '}');
+		take[STRING] = function () {
+			var value = '"';
+
+			if (!json[index++] === '"') throw 'Unexpected ' + json[index] + ' at ' + index;
+
+			while (json[index] !== '"') {
+				if (0 <= json.charCodeAt(index) && json.charCodeAt(index) <= 0x1f) {
+					throw 'Unicode control character not allowed in string';
+				} else if (json[index] === '\\') {
+					index++;
+					switch (json[index]) {
+						case '"':
+							value += '"';
+							index++;
+							break;
+						case '\\':
+							value += '\\'
+							index++;
+							break;
+						case '/':
+							value += '/';
+							index++;
+							break;
+						case 'b':
+							value += '\b';
+							index++;
+							break;
+						case 'f':
+							value += '\f';
+							index++;
+							break;
+						case 'n':
+							value += '\n';
+							index++;
+							break;
+						case 'r':
+							value += '\r';
+							index++;
+							break;
+						case 't':
+							value += '\t';
+							index++;
+							break;
+						case 'u':
+							// Followed by 4 unicode chars
+							var code = 0;
+							for (var i = 0; i < 4; i++) {
+								code = code * 16 + '0123456789abcdef'.indexOf(json[index++]);
+							}
+							value += String.fromCharCode(code);
+							break;
+					}
+				} else { // All other characters
+					value += json[index++];
+				}
+			}
+
+			if (!json[index++] === '"') throw 'Unexpected ' + json[index] + ' at ' + index;
+			value += '"';
+
+			return {
+				type: STRING,
+				value: value
+			};
+		};
+		take[NUMBER] = function () {
+			var value = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:(?:e|E)(?:\+|-)?\d+)?/.exec(json.slice(index));
+			if (!value) throw 'Could not match number'
+			value = value[0];
+			index += value.length;
+			return {
+				type: NUMBER,
+				value: value
 			};
 		};
 
-		var takeNull = takeLiteral('null', NULL);
-		var takeTrue = takeLiteral('true', TRUE);
-		var takeFalse = takeLiteral('false', FALSE);
-		var takeObjectBegin = takeLiteral('{', OBJECT_BEGIN);
-		var takeObjectEnd = takeLiteral('}', OBJECT_END);
-		var takeColon = takeLiteral(':', COLON);
-		var takeComma = takeLiteral(',', COMMA);
-		var takeArrayBegin = takeLiteral('[', ARRAY_BEGIN);
-		var takeArrayEnd = takeLiteral(']', ARRAY_END);
-
-		var takeNumber = function () {
-			var regex = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:(?:e|E)(?:\+|-)?\d+)?/;
-			var match = regex.exec(json);
-			if (match.length < 1) {
-				throw 'Unexpected input. Expecting number.';
-			} else {
-				var t = new token(match[0], NUMBER);
-				t.raw = match[0];
-				tokens.push(t);
-				advance(match[0].length);
-			}
-		};
-
-		var takeString = function () {
-			var regex = /^"((?:[^"\\]|\\(?:"\\\/bfnrt)|u[0-9a-fA-F]{4})*)"/;
-			var match = regex.exec(json);
-			if (match && match.length < 1) {
-				throw 'Unexpected input. Expecting string.';
-			} else {
-				var t = new token(match[0], STRING);
-				t.raw = match[1];
-				tokens.push(t);
-				advance(match[0].length);
-			}
-		};
-
-		var takers = {
-			'null': takeNull,
-			'true': takeTrue,
-			'false': takeFalse,
-			'number': takeNumber,
-			'string': takeString,
-			'object-begin': takeObjectBegin,
-			'object-end': takeObjectEnd,
-			'colon': takeColon,
-			'comma': takeComma,
-			'array-begin': takeArrayBegin,
-			'array-end': takeArrayEnd
-		};
-
-		while (json.length > 0) {
-			var type = classify(json);
-			takers[type]();
+		while (index < json.length) {
+			tokens.push(take[classify(json[index])]());
+			index += /^\s*/.exec(json.slice(index))[0].length;
 		}
-		return tokens;
+
+		return tokens.map(function (token) {
+			//token.type = TokenNames[token.type];
+			return token;
+		});
+	};
+
+	var generate = function (tokens) {
+
+		var index = 0;
+
+		var grammar = {};
+
+		function terminal () {
+			var terminals = Array.prototype.slice.call(arguments);
+			terminals.forEach(function (type) {
+				grammar[type] = {
+					type: type,
+					terminal: true
+				};
+			});
+		}
+
+		function nonterminal (type, options, root) {
+			grammar[type] = {
+				type: type,
+				terminal: false,
+				options: options,
+				root: root || false
+			};
+		}
+
+		function terminals () {
+			return Object.keys(grammar).filter(function (key) {
+				return grammar[key].terminal;
+			}).map(function (key) {
+				return grammar[key];
+			});
+		}
+
+		function nonterminals () {
+			return Object.keys(grammar).filter(function (key) {
+				return !grammar[key].terminal;
+			}).map(function (key) {
+				return grammar[key];
+			});
+		}
+
+		function root () {
+			var el = Object.keys(grammar).filter(function (key) {
+				return grammar[key].root;
+			});
+			if (!el) throw 'No root element specified for parsing';
+			return grammar[el];
+		}
+
+		terminal(NULL, TRUE, FALSE, COLON, COMMA);
+		terminal(BEGIN_ARRAY, END_ARRAY, BEGIN_OBJECT, END_OBJECT);
+		terminal(STRING, NUMBER);
+
+		nonterminal(PROPERTY, [
+			[ STRING, COLON, VALUE ]
+		]);
+		nonterminal(PROPERTIES, [
+			[ PROPERTY ],
+			[ PROPERTY, PROPERTIES ]
+		]);
+		nonterminal(OBJECT, [
+			[ BEGIN_OBJECT, END_OBJECT ],
+			[ BEGIN_OBJECT, PROPERTIES, END_OBJECT ]
+		]);
+
+		nonterminal(ELEMENTS, [
+			[ VALUE ],
+			[ VALUE, COMMA, ELEMENTS ]
+		]);
+		nonterminal(ARRAY, [
+			[ BEGIN_ARRAY, END_ARRAY ],
+			[ BEGIN_ARRAY, ELEMENTS, END_ARRAY ]
+		]);
+
+		nonterminal(VALUE, [
+			NULL, TRUE, FALSE, NUMBER, STRING, ARRAY, OBJECT
+		], true);
+
+		function expect (type) {
+			if (grammar[type].terminal) {
+				if (!tokens[index] === type) {
+					throw 'Unexpected token ' + TokenNames[type];
+				}
+				switch (type) {
+					case NULL: return null;
+					case TRUE: return true;
+					case FALSE: return false;
+
+		return expect(root());
 	};
 
 	return {
+		tokenize: tokenize,
 		parse: function (json) {
-			return parse(tokenize(json));
-		},
-		tokenize: tokenize
+			return generate(tokenize(json));
+		}
 	};
 
 }));
